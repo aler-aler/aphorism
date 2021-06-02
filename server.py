@@ -9,6 +9,10 @@ import json
 import random
 import time
 
+# Liczba graczy potrzebna do rozpoczęcia
+MIN_PLAYERS = 3
+
+# Pula haseł
 TITLES = [
     "Python",
     "3",
@@ -73,6 +77,7 @@ class Server(threading.Thread):
         self.connections = []
         self.host = host
         self.port = port
+        # Init ustawień
         self.data = {}
         self.data["title"] = "undefined"
         self.data["state"] = "wait"
@@ -82,6 +87,7 @@ class Server(threading.Thread):
         self.data["total_scores"] = {}
         self.votes = {}
 
+    # Callowane po każdej rundzie
     def reset(self):
         time.sleep(10)
         print("New round")
@@ -90,7 +96,8 @@ class Server(threading.Thread):
         self.data["messages"] = {}
         self.data["title"] = random.choice(TITLES)
         self.data["state"] = "wait"
-        if self.player_count() >= 3:
+        # Stan zależny od liczby graczy
+        if self.player_count() >= MIN_PLAYERS:
             self.data["state"] = "game"
         else:
             self.data["state"] = "wait"
@@ -98,6 +105,7 @@ class Server(threading.Thread):
         self.broadcast_all(dump)
 
     def run(self):
+        # Init serwera
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((self.host, self.port))
@@ -108,11 +116,13 @@ class Server(threading.Thread):
         idx = 0
         try:
             while True:
+                # Czekaj na nowe połączenie i twórz nowe ""wątki""
                 sc, sockname = sock.accept()
                 print('{} has joined'.format(idx))
                 server_socket = ServerSocket(sc, sockname, self, idx)
                 idx += 1
                 server_socket.start()
+                # self.connections trzyma wszystkie aktualne połączenia
                 self.connections.append(server_socket)
         except KeyboardInterrupt:
             self.quit()
@@ -124,7 +134,7 @@ class Server(threading.Thread):
 
     def broadcast(self, message, source):
         for connection in self.connections:
-            # Send to all connected clients except the source client
+            # Wyślij wiadomość do wszystkich oprócz source
             if connection.sockname != source:
                 connection.send(message)
 
@@ -139,6 +149,7 @@ class Server(threading.Thread):
         return len(self.connections)
 
 
+# Klasa reprezentująca jedno połączenie
 class ServerSocket(threading.Thread):
     def __init__(self, sc, sockname, server, id):
         super().__init__()
@@ -148,6 +159,7 @@ class ServerSocket(threading.Thread):
         self.server = server
         self.username = ""
 
+    # Rozłącz i usuń się z danych
     def call_quit(self):
         print('{} has left'.format(self.id))
         self.server.data["users"].pop(self.id, None)
@@ -161,63 +173,67 @@ class ServerSocket(threading.Thread):
             self.server.data["state"] = "wait"
 
     def run(self):
-        """
-        Receives data from the connected client and broadcasts the message to all other clients.
-        If the client has left the connection, closes the connected socket and removes itself
-        from the list of ServerSocket threads in the parent Server thread.
-        """
         try:
+            data = self.server.data
             while True:
                 message = self.sc.recv(1024).decode('utf8')
                 if not message:
                     self.call_quit()
                     return
                 elif message:
+                    # Nie ma zainicjalizowanego username => ten klient się wita
                     if self.username == "":
                         self.username = message
-                        self.server.data["users"][self.id] = self.username
-                        if len(self.server.data["users"]) >= 3 and self.server.data["state"] == "wait":
-                            self.server.data["title"] = random.choice(TITLES)
-                            self.server.data["state"] = "game"
-                        dump = json.dumps(self.server.data, ensure_ascii=False)
+                        data["users"][self.id] = self.username
+                        # Zmień stan, gdy jest już wystarczająca liczba graczy
+                        if len(data["users"]) >= MIN_PLAYERS and data["state"] == "wait":
+                            data["title"] = random.choice(TITLES)
+                            data["state"] = "game"
+                        dump = json.dumps(data, ensure_ascii=False)
                         self.server.broadcast(dump, self.sockname)
-                        data_copy = self.server.data.copy()
+                        data_copy = data.copy()
                         data_copy["playerid"] = self.id
                         dump = json.dumps(data_copy, ensure_ascii=False)
                         self.send(dump)
-                    elif self.server.data["state"] == "game":
-                        self.server.data["messages"][self.id] = message
-                        if len(self.server.data["messages"]) == self.server.player_count():
-                            self.server.data["state"] = "vote"
-                            dump = json.dumps(self.server.data, ensure_ascii=False)
+                    # Klient wysłał aforyzm
+                    elif data["state"] == "game":
+                        data["messages"][self.id] = message
+                        # Zmień stan, gdy wszyscy wysłali
+                        if len(data["messages"]) == self.server.player_count():
+                            data["state"] = "vote"
+                            dump = json.dumps(data, ensure_ascii=False)
                             self.server.broadcast_all(dump)
-                    elif self.server.data["state"] == "vote":
+                    # Klient głosuje
+                    elif data["state"] == "vote":
                         self.server.votes[self.id] = int(message)
                         if len(self.server.votes) == self.server.player_count():
+                            # Zliczanie głosów
                             for key in self.server.votes:
                                 player = self.server.votes[key]
-                                if player not in self.server.data["scores"]:
-                                    self.server.data["scores"][player] = 0
-                                self.server.data["scores"][player] += 1
-                            for player in self.server.data["scores"]:
-                                name = self.server.data["users"][player]
-                                if player not in self.server.data["total_scores"]:
+                                if player not in data["scores"]:
+                                    data["scores"][player] = 0
+                                data["scores"][player] += 1
+                            # Naokoło dodawanie ich do totala oraz do configa
+                            # Config jest osobno, bo jeśli są name clashe, to istnieją dwa total_scores i jeden wpis w configu
+                            for player in data["scores"]:
+                                name = data["users"][player]
+                                if player not in data["total_scores"]:
                                     if name in self.server.config["DEFAULT"]:
-                                        self.server.data["total_scores"][player] = int(
+                                        data["total_scores"][player] = int(
                                             self.server.config["DEFAULT"][name])
                                     else:
-                                        self.server.data["total_scores"][player] = 0
+                                        data["total_scores"][player] = 0
                                         self.server.config["DEFAULT"][name] = "0"
-                                self.server.data["total_scores"][player] += self.server.data["scores"][player]
+                                data["total_scores"][player] += data["scores"][player]
                                 self.server.config["DEFAULT"][name] = str(int(
-                                    int(self.server.config["DEFAULT"][name]) + int(self.server.data["scores"][player])))
-                            self.server.data["state"] = "display"
-                            dump = json.dumps(self.server.data, ensure_ascii=False)
+                                    int(self.server.config["DEFAULT"][name]) + int(data["scores"][player])))
+                            # Zmiana stanu na display
+                            data["state"] = "display"
+                            dump = json.dumps(data, ensure_ascii=False)
                             self.server.broadcast_all(dump)
                             with open("config.ini", 'w') as config_file:
                                 self.server.config.write(config_file)
                             self.server.reset()
-                    # print(self.server.data)
 
         except KeyboardInterrupt or EOFError:
             print("Caught keyboard interrupt, exiting")
@@ -236,6 +252,7 @@ def quit(server):
     os._exit(0)
 
 
+# Wyjście na Ctrl+C albo Ctrl+Z
 def exit(server):
     try:
         while True:

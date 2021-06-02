@@ -23,7 +23,7 @@ class Client(threading.Thread):
         self.sock.connect((self.host, self.port))
         print('Connected to {}:{}'.format(self.host, self.port))
 
-        # Send the username as a welcome message
+        # Wyślij username na powitanie
         self.sock.sendall(self.name.encode('utf8'))
         super().start()
 
@@ -40,11 +40,13 @@ class Client(threading.Thread):
         self.sock.sendall(str(player).encode('utf8'))
 
     def run(self):
+        # Słuchanie wiadomości od serwera
         try:
             while True:
                 message = self.sock.recv(4096).decode('utf8')
                 if message:
                     data = json.loads(message)
+                    # Informacja zwrotna ma playerid => ustaw playerid
                     if "playerid" in data:
                         self.gui.player_id = int(data["playerid"])
                     self.gui.server_data = data
@@ -66,6 +68,7 @@ class GUI(tk.Frame):
         tk.Frame.__init__(self, master)
         self.master.protocol("WM_DELETE_WINDOW", self.quit)
         domyslne=self.config["DEFAULT"]
+        # Kod po polsku jest od Profesora
         self.geometria_baza=domyslne.get('bazowa_geometria',"1000x800+50+50")
         self.master.geometry(self.geometria_baza)
         self.master.minsize(1024, 480)
@@ -77,10 +80,13 @@ class GUI(tk.Frame):
         self.master.rowconfigure(1, weight=9999)
         self.master.rowconfigure(2, weight=1)
         self.client = None
-        self.bg_color = '#36393f'
-        self.font_color = '#cccccc'
+        self.BG_COLOR = '#36393f'
+        self.FONT_COLOR = '#cccccc'
 
+        # Dane wysłane przez serwer
         self.server_data = {}
+
+        # Ramki tkintera
         self.frames = {}
 
         self.frames["welcome"] = self.draw_welcome_screen()
@@ -89,9 +95,9 @@ class GUI(tk.Frame):
         self.messages = []
         self.player_id = -1
 
+        # Ustawianie domyślnych wartości
         if "username" in domyslne:
             self.username_entry.insert(0, domyslne["username"])
-
         if "hostname" in domyslne:
             self.address_entry.insert(0, domyslne["hostname"])
         else:
@@ -118,12 +124,12 @@ class GUI(tk.Frame):
     def popup(self, a=""):
         window = tk.Toplevel()
         window.minsize(240, 80)
-        window.configure(bg=self.bg_color)
+        window.configure(bg=self.BG_COLOR)
 
-        label = tk.Label(window, text="Języki skryptowe 2021", bg=self.bg_color, fg=self.font_color)
+        label = tk.Label(window, text="Języki skryptowe 2021", bg=self.BG_COLOR, fg=self.FONT_COLOR)
         label.pack(fill='x', padx=50, pady=5)
 
-        button_close = tk.Button(window, text="Zamknij", command=window.destroy, width=6)#, bg=self.bg_color, fg=self.font_color)
+        button_close = tk.Button(window, text="Zamknij", command=window.destroy, width=6)
         button_close.pack()
     
     def add_help_menu(self):
@@ -143,8 +149,8 @@ class GUI(tk.Frame):
             with open("client_config.ini", 'w') as config_file:
                 self.config.write(config_file)
         except:
+            # Mogą wystąpić różne I/O błędy
             print("Unable to save config.ini")
-            pass
         self.master.destroy()
 
     def disconnect(self, event=None):
@@ -177,38 +183,41 @@ class GUI(tk.Frame):
         self.switch_to("wait")
         self.client.vote(player)
 
+    # Zmiana ramki
     def switch_to(self, state):
         for frame in self.frames:
             self.frames[frame].grid_forget()
+        # Welcome jest jedyną "statyczną" ramką i nie powinna być reinicjalizowana, bo ma przypisane wartości domyślne
         if state != "welcome":
             self.frames[state] = self.draw_screen(state)
         self.frames[state].grid(row=1, column=0, columnspan=1, rowspan=1, sticky=NSEW)
 
+    # Utworzenie danej ramki
     def draw_screen(self, type):
         if type == "wait":
-            frame = tk.Frame(self.master, background=self.bg_color)
-            label = tk.Label(frame, text="Oczekiwanie na innych graczy", pady=100, bg=self.bg_color, fg=self.font_color)
+            frame = tk.Frame(self.master, background=self.BG_COLOR)
+            label = tk.Label(frame, text="Oczekiwanie na innych graczy", pady=100, bg=self.BG_COLOR, fg=self.FONT_COLOR)
             label.pack()
             return frame
         if type == "vote":
-            frame = tk.Frame(self.master, background=self.bg_color)
-            title_label = tk.Label(frame, text="AFORYZMY", bg=self.bg_color, fg=self.font_color, font="Helvetica 22")
+            frame = tk.Frame(self.master, background=self.BG_COLOR)
+            title_label = tk.Label(frame, text="AFORYZMY", bg=self.BG_COLOR, fg=self.FONT_COLOR, font="Helvetica 22")
             title_label.pack()
 
-            tk.Label(frame, text="Wybierz ulubiony aforyzm na temat {}".format(self.server_data["title"].upper()), fg=self.font_color, bg=self.bg_color, font="Helvetica 12", height="2", anchor="n").pack()
+            tk.Label(frame, text="Wybierz ulubiony aforyzm na temat {}".format(self.server_data["title"].upper()), fg=self.FONT_COLOR, bg=self.BG_COLOR, font="Helvetica 12", height="2", anchor="n").pack()
 
             for message in self.messages:
                 player, text = message
                 if str(player) != str(self.player_id):
-                    tk.Button(frame, text=text, fg=self.font_color, bg=self.bg_color, font="Helvetica 12", width="80", height="3", pady="2", relief="flat", command=partial(self.vote, player)).pack()
+                    tk.Button(frame, text=text, fg=self.FONT_COLOR, bg=self.BG_COLOR, font="Helvetica 12", width="80", height="3", pady="2", relief="flat", command=partial(self.vote, player)).pack()
 
             return frame
         if type == "display":
-            frame = tk.Frame(self.master, background=self.bg_color)
-            title_label = tk.Label(frame, text="AFORYZMY", bg=self.bg_color, fg=self.font_color, font="Helvetica 22")
+            frame = tk.Frame(self.master, background=self.BG_COLOR)
+            title_label = tk.Label(frame, text="AFORYZMY", bg=self.BG_COLOR, fg=self.FONT_COLOR, font="Helvetica 22")
             title_label.pack()
 
-            tk.Label(frame, text="Wyniki", fg=self.font_color, bg=self.bg_color,
+            tk.Label(frame, text="Wyniki", fg=self.FONT_COLOR, bg=self.BG_COLOR,
                      font="Helvetica 12", height="2", anchor="n").pack()
 
             for message in self.messages:
@@ -219,20 +228,20 @@ class GUI(tk.Frame):
                     total_score = self.server_data["total_scores"][player]
                 if player in self.server_data["scores"]:
                     score = self.server_data["scores"][player]
-                tk.Label(frame, text="{} ({}): {} ({})".format(self.server_data["users"][player], total_score, text, score), fg=self.font_color, bg=self.bg_color, font="Helvetica 12", width="100", anchor="nw",
+                tk.Label(frame, text="{} ({}): {} ({})".format(self.server_data["users"][player], total_score, text, score), fg=self.FONT_COLOR, bg=self.BG_COLOR, font="Helvetica 12", width="100", anchor="nw",
                           height="3", pady="2", padx="2").pack(fill="x")
 
-            tk.Label(frame, text="Kolejna runda rozpocznie się za chwilę", fg=self.font_color, bg=self.bg_color,
+            tk.Label(frame, text="Kolejna runda rozpocznie się za chwilę", fg=self.FONT_COLOR, bg=self.BG_COLOR,
                      font="Helvetica 12", height="3", anchor="n").pack(side="bottom")
 
             return frame
         if type == "game":
-            frame = tk.Frame(self.master, background=self.bg_color)
-            title_label = tk.Label(frame, text="AFORYZMY", bg=self.bg_color, fg=self.font_color, font="Helvetica 22")
+            frame = tk.Frame(self.master, background=self.BG_COLOR)
+            title_label = tk.Label(frame, text="AFORYZMY", bg=self.BG_COLOR, fg=self.FONT_COLOR, font="Helvetica 22")
             title_label.pack()
 
             tk.Label(frame, text="Napisz złotą myśl na temat wyrazu {}".format(self.server_data["title"].upper()),
-                     fg=self.font_color, bg=self.bg_color, font="Helvetica 12").pack()
+                     fg=self.FONT_COLOR, bg=self.BG_COLOR, font="Helvetica 12").pack()
             sv = tk.StringVar()
             self.aphorism_entry = tk.Entry(frame, width=80, textvariable=sv)
             sv.trace_add("write", lambda x, y, z: self.key_fix(sv, 100))
@@ -243,17 +252,17 @@ class GUI(tk.Frame):
             return frame
     
     def draw_welcome_screen(self):
-        frame = tk.Frame(self.master, background=self.bg_color)
-        title_label = tk.Label(frame, text="AFORYZMY", bg=self.bg_color, fg=self.font_color, font="Helvetica 22")
+        frame = tk.Frame(self.master, background=self.BG_COLOR)
+        title_label = tk.Label(frame, text="AFORYZMY", bg=self.BG_COLOR, fg=self.FONT_COLOR, font="Helvetica 22")
         title_label.pack()
 
-        tk.Label(frame, text="Login", fg=self.font_color, bg=self.bg_color, font="Helvetica 12").pack()
+        tk.Label(frame, text="Login", fg=self.FONT_COLOR, bg=self.BG_COLOR, font="Helvetica 12").pack()
         sv = tk.StringVar()
         self.username_entry = tk.Entry(frame, textvariable=sv)
         sv.trace_add("write", lambda x,y,z: self.key_fix(sv, 20))
         self.username_entry.pack()
 
-        tk.Label(frame, text="Host", fg=self.font_color, bg=self.bg_color, font="Helvetica 12").pack()
+        tk.Label(frame, text="Host", fg=self.FONT_COLOR, bg=self.BG_COLOR, font="Helvetica 12").pack()
         self.address_entry = tk.Entry(frame)
         self.address_entry.pack()
 
