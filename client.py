@@ -6,11 +6,8 @@ import tkinter.messagebox
 from tkinter.constants import NSEW
 import threading
 import socket
-import selectors
 import json
 from functools import partial
-
-sel = selectors.DefaultSelector()
 
 class Client(threading.Thread):
     def __init__(self, host, port, username, gui):
@@ -134,7 +131,7 @@ class GUI(tk.Frame):
         fileMenu.add_command(label="O Aforyzmach...", underline=0,
                 command=self.popup, accelerator="Ctrl+B")
         self.master.bind("<Control-b>", self.popup)
-        self.menubar.add_cascade(label="Help", menu=fileMenu, underline=0) 
+        self.menubar.add_cascade(label="Pomoc", menu=fileMenu, underline=0)
         pass    
 
     def close(self):
@@ -142,17 +139,21 @@ class GUI(tk.Frame):
         self.config["DEFAULT"]["bazowa_geometria"] = geometria
         self.config["DEFAULT"]["username"] = self.username_entry.get()
         self.config["DEFAULT"]["hostname"] = self.address_entry.get()
-        with open("client_config.ini", 'w') as config_file:
-            self.config.write(config_file)
+        try:
+            with open("client_config.ini", 'w') as config_file:
+                self.config.write(config_file)
+        except:
+            print("Unable to save config.ini")
+            pass
         self.master.destroy()
 
-    def disconnect(self, event= None):
+    def disconnect(self, event=None):
         if self.client is not None:
             self.client.close()
             self.client = None
             self.switch_to("welcome")
 
-    def quit(self, event= None):
+    def quit(self, event=None):
         reply = True
         reply = tkinter.messagebox.askyesno(
                         "Wyjście",
@@ -194,7 +195,7 @@ class GUI(tk.Frame):
             title_label = tk.Label(frame, text="AFORYZMY", bg=self.bg_color, fg=self.font_color, font="Helvetica 22")
             title_label.pack()
 
-            tk.Label(frame, text="Wybierz najlepszą definicję {}".format(self.server_data["title"].upper()), fg=self.font_color, bg=self.bg_color, font="Helvetica 12", height="2", anchor="n").pack()
+            tk.Label(frame, text="Wybierz ulubiony aforyzm na temat {}".format(self.server_data["title"].upper()), fg=self.font_color, bg=self.bg_color, font="Helvetica 12", height="2", anchor="n").pack()
 
             for message in self.messages:
                 player, text = message
@@ -261,6 +262,7 @@ class GUI(tk.Frame):
         return frame
 
 
+    # Poprawienie polskich znaków i usuwanie =; limit znaków
     def key_fix(self, sv, limit):
         str = sv.get()
         list = [
@@ -271,7 +273,7 @@ class GUI(tk.Frame):
             ('ń', 'ñ'), ('Ń', 'Ñ'),
             ('ą', '¹'), ('Ą', '¥'),
             ('ż', '¿'), ('Ż', '¯'),
-            ('ź', 'Ÿ'), ('', "=")#('Ź', '')
+            ('ź', 'Ÿ'), ('', "=")
         ]
         for (pl, k) in list:
             str = str.replace(k, pl)
